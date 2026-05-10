@@ -13804,6 +13804,16 @@ static ggml_backend_buffer_t ggml_backend_vk_buffer_type_alloc_buffer(ggml_backe
         return nullptr;
     }
 
+    // Debug aid: when GGML_VK_POISON_BUFFERS is set, fill new device buffers with
+    // 0xFF bytes. 0xFFFFFFFF / 0xFFFF decodes to NaN for f32/f16/bf16, so any
+    // shader that reads past a tensor's logical end (still inside the buffer)
+    // turns its result into NaN deterministically — surfacing OOB-read bugs that
+    // would otherwise depend on whatever happened to be in uninitialised memory.
+    static const bool poison = getenv("GGML_VK_POISON_BUFFERS") != nullptr;
+    if (poison && size > 0) {
+        ggml_vk_buffer_memset(dev_buffer, 0, 0xFFFFFFFFu, size);
+    }
+
     ggml_backend_vk_buffer_context * bufctx = new ggml_backend_vk_buffer_context(ctx->device, std::move(dev_buffer), ctx->name);
 
     return ggml_backend_buffer_init(buft, ggml_backend_vk_buffer_interface, bufctx, size);
